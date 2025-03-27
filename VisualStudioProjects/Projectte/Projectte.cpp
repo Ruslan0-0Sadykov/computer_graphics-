@@ -1,8 +1,11 @@
 #include <glew.h>
 #include <glfw3.h>
 #include <iostream>
-#define M_PI 3.14159265358979323846
+#include <fstream>
+#include <sstream>
 #include <cmath>
+
+#define M_PI 3.14159265358979323846
 
 void error_callback(int error, const char* description) {
     std::cerr << "Error: " << description << std::endl;
@@ -11,20 +14,25 @@ void error_callback(int error, const char* description) {
 GLuint VBO, VAO, EBO;
 GLuint shader_program;
 
-const char* vertex_shader = R"(
-#version 410 core
-layout (location = 0) in vec3 vp;
-void main() {
-    gl_Position = vec4(vp, 1.0);
-})";
 
-const char* fragment_shader = R"(
-#version 410 core
-out vec4 frag_colour;
-uniform vec4 ourColor;
-void main() {
-    frag_colour = ourColor;
-})";
+std::string load_shader_from_file(const char* file_path) {
+    std::ifstream shader_file;
+    shader_file.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    std::string shader_code;
+
+    try {
+        shader_file.open(file_path);
+        std::stringstream shader_stream;
+        shader_stream << shader_file.rdbuf();
+        shader_file.close();
+        shader_code = shader_stream.str();
+    }
+    catch (std::ifstream::failure& e) {
+        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << file_path << std::endl;
+    }
+
+    return shader_code;
+}
 
 void compile_shader(GLuint& shader, const char* shader_code, GLenum shader_type) {
     shader = glCreateShader(shader_type);
@@ -42,8 +50,13 @@ void compile_shader(GLuint& shader, const char* shader_code, GLenum shader_type)
 
 void create_shader_program() {
     GLuint vs, fs;
-    compile_shader(vs, vertex_shader, GL_VERTEX_SHADER);
-    compile_shader(fs, fragment_shader, GL_FRAGMENT_SHADER);
+
+   
+    std::string vertex_shader_code = load_shader_from_file("vertex_shader.glsl");
+    std::string fragment_shader_code = load_shader_from_file("fragment_shader.glsl");
+
+    compile_shader(vs, vertex_shader_code.c_str(), GL_VERTEX_SHADER);
+    compile_shader(fs, fragment_shader_code.c_str(), GL_FRAGMENT_SHADER);
 
     shader_program = glCreateProgram();
     glAttachShader(shader_program, vs);
@@ -62,31 +75,30 @@ void create_shader_program() {
     glDeleteShader(fs);
 }
 
-void init_geometry() {
-    const int num_segments = 360; 
-    const float a = 0.5f; 
-    const float b = 0.3f; 
 
-    float vertices[3 * (num_segments + 1)]; 
-    GLuint indices[3 * num_segments]; 
-    
+void init_geometry() {
+    const int num_segments = 360;
+    const float a = 0.5f;
+    const float b = 0.3f;
+
+    float vertices[3 * (num_segments + 1)];
+    GLuint indices[3 * num_segments];
+
     vertices[0] = 0.0f;
     vertices[1] = 0.0f;
     vertices[2] = 0.0f;
 
-    
     for (int i = 0; i < num_segments; ++i) {
         float angle = (2.0f * M_PI * i) / num_segments;
-        vertices[3 * (i + 1)] = a * cos(angle);  
-        vertices[3 * (i + 1) + 1] = b * sin(angle); 
-        vertices[3 * (i + 1) + 2] = 0.0f; 
+        vertices[3 * (i + 1)] = a * cos(angle);
+        vertices[3 * (i + 1) + 1] = b * sin(angle);
+        vertices[3 * (i + 1) + 2] = 0.0f;
     }
 
-    
     for (int i = 0; i < num_segments; ++i) {
-        indices[3 * i] = 0; 
+        indices[3 * i] = 0;
         indices[3 * i + 1] = i + 1;
-        indices[3 * i + 2] = (i + 1) % num_segments + 1; 
+        indices[3 * i + 2] = (i + 1) % num_segments + 1;
     }
 
     glGenVertexArrays(1, &VAO);
@@ -108,20 +120,21 @@ void init_geometry() {
     glBindVertexArray(0);
 }
 
+
 void drawEllipse(float time) {
-    float r = (sin(time) + 1.0f) / 2.0f; 
+    float r = (sin(time) + 1.0f) / 2.0f;
     float g = (cos(time) + 1.0f) / 2.0f;
 
     glUseProgram(shader_program);
 
-    
     GLint colorLoc = glGetUniformLocation(shader_program, "ourColor");
     glUniform4f(colorLoc, r, g, 0.5f, 1.0f);
 
     glBindVertexArray(VAO);
-    glDrawElements(GL_TRIANGLES, 3 * 360, GL_UNSIGNED_INT, 0); 
+    glDrawElements(GL_TRIANGLES, 3 * 360, GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
 }
+
 
 int main() {
     if (!glfwInit()) {
